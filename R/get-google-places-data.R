@@ -39,7 +39,6 @@ place_names_ready <- places_names %>%
   transmute(search_string = as.character(glue("{business_name}, {address}, Seattle, WA"))) %>% 
   pluck(1)
 
-
 download_places_data <- function(dat){
   
   # browser()
@@ -67,10 +66,47 @@ download_places_data <- function(dat){
   
 }
 
-tmp <- place_names_ready[sample(1:length(place_names_ready),size = 5,replace = F)]
 
-places_data_raw <- download_places_data(dat = place_names_ready)
+if(!file.exists(here("data/places-data-raw.rds"))){
+  places_data_raw <- download_places_data(dat = place_names_ready)
+  
+  write_rds(places_data_raw, here("data/places-data-raw.rds"))
+}
 
-write_rds(places_data_raw, here("data/places-data-raw.rds"))
+
+# CLEAN PLACES DATA -------------------------------------------------------
+
+
+places_raw <- read_rds(here("data/places-data-raw.rds"))
+
+remove_zero_results <- function(x){
+  
+  ids <- map(x,"status") %in% "OK"
+  
+  res <- x[ids]
+  
+  return(res)
+}
+
+places_ok <- remove_zero_results(places_raw) %>% 
+  map_dfr("results") %>% 
+  as_tibble()
+
+places_open <- places_ok %>% 
+  filter(business_status %in% c("OPERATIONAL", "CLOSED_TEMPORARILY"))
+
+places_ready <- places_open %>% 
+  transmute(name, 
+            formatted_address,
+            business_status,
+            lat = pluck(geometry,"location","lat"),
+            lng = pluck(geometry,"location","lng"),
+            types,
+            place_id
+  ) %>% 
+  st_as_sf(coords = c("lng","lat")) %>% 
+  st_set_crs(4326)
+
+
 
 
