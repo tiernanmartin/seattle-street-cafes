@@ -156,7 +156,6 @@ places_deduplicated <- p_nest %>%
 
 places_with_permit_info <- places_deduplicated %>% 
   left_join(permits, by = "permit_address" )
-  
 
 places_sf <- places_with_permit_info %>% 
   transmute(name = google_name, 
@@ -169,11 +168,27 @@ places_sf <- places_with_permit_info %>%
             permit_company = contact_company,
             lat = pluck(google_geometry,"location","lat"),
             lng = pluck(google_geometry,"location","lng"),
-            types = google_types
+            types = map_chr(google_types, ~str_c(.x, collapse = "; ")),
+            place_id = google_place_id
   ) %>% 
   st_as_sf(coords = c("lng","lat")) %>% 
   st_set_crs(4326)
 
-mapview(places_sf)
+
+# WRITE CLEANED DATA ------------------------------------------------------
+
+if(!file.exists(here("data/places-data-cleaned.gpkg"))){
+  st_write(places_sf,
+           here("data/places-data-cleaned.gpkg"), 
+           append = FALSE)
+}
+
+# mapview(places_sf)
+
+
+
+# HIT GOOGLE PLACES API AGAIN ---------------------------------------------
+
+
 
 
