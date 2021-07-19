@@ -118,10 +118,41 @@ places_ok <- places_raw %>%
 places_open <- places_ok %>% 
   filter(google_business_status %in% c("OPERATIONAL", "CLOSED_TEMPORARILY"))
 
-places_deduplicated <- places_open %>% 
-  group_by(google_name, google_formatted_address) %>% 
-  slice(1) %>%
-  ungroup()
+# de-duplicate by selecting the closest address match using string matching
+
+p_nest <- places_open %>% 
+  mutate(grp = permit_search_string) %>% 
+  mutate(g_address_short = str_extract(google_formatted_address,
+                                       ".*(?=, Seattle)")) %>% 
+  group_by(grp) %>% 
+  nest() %>% 
+  ungroup() %>% 
+  mutate(n = map_int(data, ~ nrow(.x)))
+
+
+filter_fuzzy_address <- function(x){
+  # browser()
+  
+  if(nrow(x) == 1L){return(x)}
+  
+  res <- x %>%  
+    rowwise() %>%  
+    mutate(dist = stringdist(permit_address,
+                             g_address_short,
+                             method = "jw")) %>%  
+    ungroup() %>% 
+    arrange(desc(dist))
+  
+  res <- res %>% 
+    slice_min(dist) %>% 
+    select(-dist)
+  
+  return(res)
+}
+
+places_deduplicated <- p_nest %>%  
+  mutate(data = map(data, filter_fuzzy_address)) %>% 
+  unnest(cols = c(data))
 
 places_with_permit_info <- places_deduplicated %>% 
   left_join(permits, by = "permit_address" )
@@ -143,15 +174,6 @@ places_sf <- places_with_permit_info %>%
   st_as_sf(coords = c("lng","lat")) %>% 
   st_set_crs(4326)
 
-
-census_places_wa <- tigris::places(state = "WA")
-
-seattle_boundary <- census_places_wa %>% 
-  filter(NAME %in% "Seattle") %>% 
-  st_transform(4326)
-
-places_seattle <- places_sf[seattle_boundary,]
-
-mapview(places_seattle)
+mapview(places_sf)
 
 
