@@ -71,11 +71,9 @@ download_places_data <- function(dat){
     return(res)
     
   }
-  
-  list_of_rows <- pmap(dat,tibble)
-  
+   
   res <- map(
-    list_of_rows,
+    dat,
     possibly(hit_google_places_api,
              list()
     )
@@ -184,11 +182,3 @@ if(!file.exists(here("data/places-data-cleaned.gpkg"))){
 }
 
 # mapview(places_sf)
-
-
-
-# HIT GOOGLE PLACES API AGAIN ---------------------------------------------
-
-
-
-
